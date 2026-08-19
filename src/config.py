@@ -32,9 +32,21 @@ class AgyConfig:
 
 
 @dataclass(frozen=True)
+class QueueConfig:
+    max_per_user: int = 5
+    cooldown_seconds: int = 10
+
+
+@dataclass(frozen=True)
+class SafetyConfig:
+    queue: QueueConfig = field(default_factory=QueueConfig)
+
+
+@dataclass(frozen=True)
 class Config:
     telegram: TelegramConfig
     agy: AgyConfig
+    safety: SafetyConfig = field(default_factory=SafetyConfig)
 
 
 def load_config(path: Path) -> Config:
@@ -107,4 +119,5 @@ def load_config(path: Path) -> Config:
             model=model,
             mode=mode,
         ),
+        safety=SafetyConfig(),
     )

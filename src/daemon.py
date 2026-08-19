@@ -6,6 +6,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,12 +82,14 @@ def _detect_agy_version(agy_path: str) -> str:
     return "unknown"
 
 
-def _ensure_chat_state(state: State, chat_id: int, chats_root: Path) -> ChatState:
+def _ensure_chat_state(state: State, chat_id: int, chats_root: Path, cfg: Config) -> ChatState:
+    target_dir = cfg.agy.default_workdir if cfg.agy.default_workdir else str(chats_root / str(chat_id))
     cs = state.chats.get(chat_id)
     if cs is not None:
+        cs.chat_dir = target_dir
         Path(cs.chat_dir).mkdir(parents=True, exist_ok=True)
         return cs
-    chat_dir = chats_root / str(chat_id)
+    chat_dir = Path(target_dir)
     chat_dir.mkdir(parents=True, exist_ok=True)
     cs = ChatState(chat_dir=str(chat_dir))
     state.chats[chat_id] = cs
@@ -148,7 +151,7 @@ async def _process_text(
         LOG.info("drop unauth user=%s", msg.user_id)
         return
 
-    cs = _ensure_chat_state(state, msg.chat_id, chats_root)
+    cs = _ensure_chat_state(state, msg.chat_id, chats_root, cfg)
     save_state(state_path, state)
 
     reply = await handle_text_command(msg, cs, cfg)
@@ -173,7 +176,7 @@ async def _process_text(
         if next_item is None:
             break
         nxt_msg, nxt_fut = next_item
-        nxt_cs = _ensure_chat_state(state, nxt_msg.chat_id, chats_root)
+        nxt_cs = _ensure_chat_state(state, nxt_msg.chat_id, chats_root, cfg)
         await _do_turn(nxt_msg, tg, nxt_cs, cfg, agy_path)
         _QUEUE.complete()
         nxt_fut.set_result(None)
@@ -194,7 +197,7 @@ async def _process_callback(
         await tg.answer_callback_query(cq.callback_query_id, text="Not authorized")
         return
 
-    cs = _ensure_chat_state(state, cq.chat_id, chats_root)
+    cs = _ensure_chat_state(state, cq.chat_id, chats_root, cfg)
     reply = handle_callback(cq, cs, cfg)
     save_state(state_path, state)
 
@@ -299,7 +302,8 @@ async def _detect_bot_username(cfg: Config) -> str:
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -313,8 +317,9 @@ def main() -> None:
 
     async def _go() -> None:
         loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, stop.set)
+        if sys.platform != "win32":
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                loop.add_signal_handler(sig, stop.set)
 
         health_srv = await start_server()
 
@@ -332,8 +337,8 @@ def main() -> None:
                 agy_version=_detect_agy_version(agy_path),
             )
             LOG.info(
-                "bridge starting bot=%s agy=%s chats_root=%s mode=%s model=%s",
-                info.bot_username, info.agy_version, chats_root,
+                "🚀 Bridge started | bot: %s | agy: %s | mode: %s | default_model: %s",
+                info.bot_username, info.agy_version,
                 cfg.agy.mode, cfg.agy.model or "(default)",
             )
 

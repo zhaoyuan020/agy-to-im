@@ -13,6 +13,7 @@ import asyncio
 import gc
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 
 # Safety cap on stdout capture — prevents unbounded memory growth from
@@ -22,6 +23,8 @@ _STDOUT_CAP_BYTES = 524_288  # 512 KiB
 # Reap any defunct child processes left by prior subprocess invocations
 # (bwrap sandbox can leave orphaned grand-children).
 def _reap_zombies() -> None:
+    if sys.platform == "win32":
+        return
     try:
         while True:
             pid, _status = os.waitpid(-1, os.WNOHANG)
@@ -51,7 +54,7 @@ def _build_args(
     agy_abs = os.path.abspath(agy_path)
     agy_parent = os.path.dirname(agy_abs)
 
-    if mode == "plan" and chat_dir and "PYTEST_CURRENT_TEST" not in os.environ:
+    if mode == "plan" and chat_dir and "PYTEST_CURRENT_TEST" not in os.environ and sys.platform != "win32":
         chat_path = os.path.abspath(chat_dir)
         args: list[str] = [
             "bwrap",

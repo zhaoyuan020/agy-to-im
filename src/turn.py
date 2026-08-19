@@ -44,8 +44,8 @@ async def execute_agy(
         except (asyncio.CancelledError, Exception):
             pass
     elapsed = int((time.perf_counter() - turn_start) * 1000)
-    LOG.info("turn chat=%d cwd=%s exit=%d ms=%d reply_len=%d",
-             chat_id, cs.chat_dir, result.exit_code, elapsed, len(result.text or ""))
+    LOG.info("✅ Turn complete | chat: %d | time: %.1fs | exit: %d | reply_len: %d",
+             chat_id, elapsed / 1000.0, result.exit_code, len(result.text or ""))
     return result.text or "", result.exit_code
 
 
