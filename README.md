@@ -1,239 +1,82 @@
 # 🤖 antigravity-telegram-bridge
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-112%20passed-brightgreen.svg)](./tests)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](./LICENSE)
-[![systemd](https://img.shields.io/badge/supervisor-systemd--user-lightgrey.svg)](https://systemd.io/)
+[![Platform: Windows/Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)]()
 [![CLI](https://img.shields.io/badge/backend-Antigravity%20%28agy%29-ff69b4.svg)](https://antigravity.google)
 
-Chat with the [Antigravity CLI](https://antigravity.google) (`agy`) from Telegram.
+Chat with the [Antigravity CLI](https://antigravity.google) (`agy`) directly from Telegram.
 
-Forked from `hah23255/kimi-to-im` and adapted to drive Google's `agy` CLI instead of the discontinued `gemini` CLI. Each Telegram chat gets its own `agy` project/working directory so sessions persist across messages while staying isolated from one another.
+Forked from `hah23255/kimi-to-im`, this version has been heavily customized to drive Google's `agy` CLI natively on **Windows and Linux**. It features 1-click startup scripts, configurable custom working directories for personal development, and automatic command menu registration.
 
-**Self-hosted · single-user · Python · systemd-supervised · webhook-ready**
+**Self-hosted · Personal Assistant · Python · Cross-Platform**
 
-[English](#english) · [Български](#български)
+[English](#english) · [中文](#中文)
 
 ---
 
 ## English
 
 ### What it is
-A Telegram bridge daemon for the Google Antigravity CLI (`agy`), allowing persistent, isolated code editing sessions over Telegram chats. Version: `0.2.0`.
+A Telegram bridge daemon for the Google Antigravity CLI (`agy`). It allows you to chat with your local AI coding assistant remotely via Telegram, executing commands and modifying your actual projects seamlessly.
 
-### Features
-| Feature | Status |
-|---|---|
-| Telegram ↔ `agy` messaging | ✅ |
-| Per-chat project isolation (`--new-project` / `--continue`) | ✅ |
-| Inline keyboard control panel (`/settings`, `/model`, `/mode`) | ✅ |
-| Photo + document upload support with configurable safety routing | ✅ |
-| Configurable file type allowlist (pass/warn/hold/block per category) | ✅ |
-| Per-user rate limiting with sliding window | ✅ |
-| Memory health gate with automatic self-restart | ✅ |
-| Zombie subprocess reaping + garbage collection | ✅ |
-| Multi-user FIFO turn queue | ✅ |
-| Webhook mode with HMAC verification | ✅ |
-| Health endpoint (`/health`) and Prometheus metrics (`/metrics`) | ✅ |
-| `systemd --user` service with hardening | ✅ |
-| Plugin tool for `agy` (`bridge start/stop/status/logs/setup`) | ✅ |
-| 105 tests, 100 % pass | ✅ |
+### Key New Features (Windows Adaptation)
+* **Native Windows Support**: Removed Linux-specific dependencies (`bwrap`, `os.waitpid`, Unix signals) for flawless Windows execution.
+* **1-Click Startup**: Included `start.bat` for automatic virtual environment creation, dependency installation, and daemon startup on Windows.
+* **Custom Project Targeting**: Modified the state engine to allow `default_workdir` to bypass the isolated sandbox, enabling you to use the bot to edit your actual existing codebases.
+* **Command Auto-Registration**: Includes `set_commands.py` to automatically register the bot's command menu with Telegram's UI.
+* **Rate Limiting & Safety**: Built-in TurnQueue ratelimiting and queue management.
 
-### Quickstart
-
-You need: Linux with `systemd --user`, Python ≥3.11, `uv`, a working `agy` CLI on `PATH`, and an authenticated `agy` session.
-
+### Quickstart (Windows)
 1. **Get a Telegram bot token** from [@BotFather](https://t.me/BotFather).
 2. **Get your Telegram user ID** from [@userinfobot](https://t.me/userinfobot).
-3. **Authenticate `agy` once** in a terminal:
-   ```bash
-   agy
-   # complete the browser OAuth flow
-   ```
-4. **Install the bridge.**
-   ```bash
-   git clone https://github.com/hah23255/agy-to-im.git \
-     ~/.gemini/extensions/antigravity-telegram-bridge
-   cd ~/.gemini/extensions/antigravity-telegram-bridge
-   ./install.sh
-   cp config.example.json config.json
-   chmod 600 config.json
-   $EDITOR config.json   # fill bot_token + allowed_user_ids
-   systemctl --user start antigravity-telegram-bridge.service
-   ```
+3. Clone this repository to your local machine.
+4. Copy `config.example.json` to `config.json` and fill in your `bot_token` and `allowed_user_ids`. Set `default_workdir` to the absolute path of the project you want the AI to work on.
+5. If you use a proxy to access Telegram API, edit `start.bat` to set `HTTP_PROXY` and `HTTPS_PROXY`.
+6. Double click `start.bat` to run the bot.
+7. (Optional) Run `uv run python set_commands.py` to register the quick menu commands in Telegram.
 
-For the full step-by-step guide see `docs/deployment.md`. Day-to-day operations are in `docs/operations.md`.
-
-### Configuration
-```json
-{
-  "telegram": {
-    "bot_token": "1234567890:...",
-    "allowed_user_ids": [123456789],
-    "allowed_chat_ids": []
-  },
-  "agy": {
-    "chats_root": "",
-    "default_workdir": "",
-    "model": "",
-    "mode": "code"
-  }
-}
-```
+### Quickstart (Linux)
+You can still use `./install.sh` and `systemctl --user start antigravity-telegram-bridge.service` as per the original repository for Linux deployments.
 
 ### Text Commands
 * `/start` - Welcome message
 * `/help` - Usage help
 * `/status` / `/info` - Session summary
 * `/settings` - Inline control panel (model, mode, reset)
-* `/reset` - Start a fresh `agy` project for this chat
-* `/image on|off` - Toggle photo processing
+* `/reset` - Start a fresh `agy` session
 * `/files` - List inbox files
-* `/files clean` - Purge all inbox files
-* `/queue` - Queue status
-
-### Architecture Mapping
-```mermaid
-flowchart LR
-    User([📱 You on Telegram])
-    TG[Telegram Bot API]
-    Bridge[bridge daemon<br/>Python / systemd --user]
-    Agy[agy CLI subprocess<br/>per turn]
-    State[(state.json<br/>chat → project dir)]
-    Health[health + metrics<br/>:9100]
-
-    User -->|message| TG
-    TG -->|long-poll / webhook| Bridge
-    Bridge -->|agy -p prompt --continue/--new-project| Agy
-    Agy -->|plain text reply| Bridge
-    Bridge -->|sendMessage| TG
-    TG -->|reply| User
-    Bridge <-->|read/write| State
-    Bridge -->|/health /metrics| Health
-```
-
-### Fault Handling Manual
-| Status / Error | Root Cause | Mitigation |
-| :--- | :--- | :--- |
-| `ModuleNotFoundError: No module named 'httpx'` | The daemon was started using the global python binary instead of the local virtual environment `.venv`. | Ensure the systemd unit or script runs within the project's virtual environment (`.venv/bin/python`). |
-| Unauthorized / Token Rejected | The Telegram Bot API token is incorrect, expired, or blocked. | Check that `config.json` contains a valid bot token from BotFather. |
-| Access Denied (User ID Whitelist) | The Telegram user ID sending messages is not in the whitelisted `allowed_user_ids` config array. | Add your user ID obtained from userinfobot to `config.json` and restart the daemon. |
-| `systemd --user` service fails | The systemd user daemon cannot start the service (commonly due to missing user lingering). | Run `loginctl enable-linger` as root/user to allow user session daemons to run when logged out. |
-| Webhook verification fails | The incoming webhook payloads are rejected due to mismatched HMAC signatures. | Check that the webhook endpoint config matches the active bot token, and no proxy is rewriting payload bodies. |
-| Chat directory traversal error | A request attempted to read/write paths outside of the whitelisted `chats_root`. | Clean state database `state.json` and ensure no inputs bypass path validation hooks in `src/state.py`. |
-
-### Common Issues & Golden Rules
-* **Golden Rule 1: Default-Deny Access Control.** Always whitelists allowed user/chat IDs. Never run public-facing bridges without a strict filter list to prevent code execution by unauthorized users.
-* **Golden Rule 2: Virtual Environment Isolation.** Always execute the daemon and tools inside `.venv/` to prevent package version conflicts and runtime import issues.
-* **Golden Rule 3: Webhook HMAC Protection.** Under webhook deployment, always enforce HMAC-SHA256 signature verification on incoming requests to prevent mock payload injection.
-* **Golden Rule 4: Systemd User session lingering.** Always verify that `loginctl enable-linger` is active for the target user, guaranteeing the bridge daemon persists across terminal logouts.
 
 ---
 
-## Български
+## 中文
 
-### Какво представлява
-Телеграм мост (daemon) за конзолния инструмент Google Antigravity CLI (`agy`), позволяващ устойчиви, изолирани сесии за редактиране на код през чатове в Telegram. Версия: `0.1.1`.
+### 简介
+这是一个为 Google Antigravity CLI (`agy`) 打造的 Telegram 桥接守护进程。它允许你通过 Telegram 远程与本地的 AI 编程助手对话，直接管理和修改你电脑上的实际代码项目。
 
-### Възможности
-| Функция | Статус |
-|---|---|
-| Telegram ↔ `agy` кореспонденция | ✅ |
-| Изолация на проекти за всеки отделен чат (`--new-project` / `--continue`) | ✅ |
-| Контролен панел с вградена клавиатура (`/settings`, `/model`, `/mode`) | ✅ |
-| Поддръжка на качване на снимки и документи | ✅ |
-| Многопотребителска FIFO опашка за изчакване | ✅ |
-| Webhook режим с HMAC верификация | ✅ |
-| Здравна точка (`/health`) и Prometheus метрики (`/metrics`) | ✅ |
-| `systemd --user` услуга със защити | ✅ |
-| Инструмент-плъгин за `agy` (`bridge start/stop/status/logs/setup`) | ✅ |
-| 105 теста, 100 % преминаване | ✅ |
+### 核心新特性（Windows 深度适配版）
+* **原生 Windows 支持**：移除了原版中仅限 Linux 的依赖项（如 `bwrap` 沙盒、`os.waitpid` 僵尸进程回收、Unix 信号），在 Windows 环境下完美运行。
+* **一键启动**：新增 `start.bat` 脚本，双击即可自动创建虚拟环境、安装依赖并启动机器人。
+* **指定本地项目**：修改了底层状态机的安全沙盒校验规则。现在只需在 `config.json` 中配置 `default_workdir`，机器人就会直接进入你的真实项目目录去写代码，而不是被困在隔离的聊天沙盒中。
+* **菜单自动注册**：新增 `set_commands.py` 脚本，可一键向 Telegram 官方注册底部快捷命令菜单。
+* **流量与队列控制**：修复了原版遗漏的并发控制逻辑，完美支持用户队列限流。
 
-### Бърз старт
+### 快速开始 (Windows)
+1. 在 Telegram 中找 [@BotFather](https://t.me/BotFather) 申请一个 **Bot Token**。
+2. 找 [@userinfobot](https://t.me/userinfobot) 获取你自己的 **Telegram User ID**。
+3. 将本项目克隆或下载到本地。
+4. 将 `config.example.json` 复制一份并重命名为 `config.json`。填入你的 `bot_token` 和 `allowed_user_ids`。将 `default_workdir` 设为你想要 AI 帮你修改的本地项目的绝对路径。
+5. **(国内用户注意)**：如果你需要通过代理访问 Telegram，请右键编辑 `start.bat`，在开头加上 `set HTTP_PROXY=http://127.0.0.1:端口号`。
+6. 双击 `start.bat` 启动机器人！
+7. (可选) 在终端运行 `uv run python set_commands.py`，即可在 Telegram 聊天界面左下角生成快捷命令菜单。
 
-Необходими са: Linux със `systemd --user`, Python ≥3.11, `uv`, работещ `agy` в системния път (`PATH`) и оторизирана сесия в `agy`.
+### 快速开始 (Linux)
+本项目依然保留了原版的 Linux 兼容性。你可以继续使用 `./install.sh` 并通过 `systemd --user` 托管服务。
 
-1. **Вземете Telegram бот токен** от [@BotFather](https://t.me/BotFather).
-2. **Вземете Вашия Telegram ID** от [@userinfobot](https://t.me/userinfobot).
-3. **Оторизирайте `agy` веднъж** в конзолата:
-   ```bash
-   agy
-   # завършете браузърния OAuth процес
-   ```
-4. **Инсталирайте моста.**
-   ```bash
-   git clone https://github.com/hah23255/agy-to-im.git \
-     ~/.gemini/extensions/antigravity-telegram-bridge
-   cd ~/.gemini/extensions/antigravity-telegram-bridge
-   ./install.sh
-   cp config.example.json config.json
-   chmod 600 config.json
-   $EDITOR config.json   # попълнете bot_token + allowed_user_ids
-   systemctl --user start antigravity-telegram-bridge.service
-   ```
-
-За пълно ръководство вижте `docs/deployment.md`. Ежедневната експлоатация е описана в `docs/operations.md`.
-
-### Конфигурация
-```json
-{
-  "telegram": {
-    "bot_token": "1234567890:...",
-    "allowed_user_ids": [123456789],
-    "allowed_chat_ids": []
-  },
-  "agy": {
-    "chats_root": "",
-    "default_workdir": "",
-    "model": "",
-    "mode": "code"
-  }
-}
-```
-
-### Текстови команди
-* `/start` - Добре дошли
-* `/help` - Помощ при ползване
-* `/status` / `/info` - Обобщение на сесията
-* `/settings` - Контролен панел (модел, режим, ресет)
-* `/reset` - Стартиране на нов `agy` проект за този чат
-* `/image on|off` - Включване на обработка на снимки
-* `/files` - Списък с файлове
-* `/files clean` - Изтриване на всички файлове
-* `/queue` - Статус на опашката
-
-### Архитектурно описание
-```mermaid
-flowchart LR
-    User([📱 Вие в Telegram])
-    TG[Telegram Bot API]
-    Bridge[bridge daemon<br/>Python / systemd --user]
-    Agy[agy CLI подпроцес<br/>за всяка стъпка]
-    State[(state.json<br/>chat → папка на проекта)]
-    Health[health + metrics<br/>:9100]
-
-    User -->|съобщение| TG
-    TG -->|long-poll / webhook| Bridge
-    Bridge -->|agy -p prompt --continue/--new-project| Agy
-    Agy -->|отговор| Bridge
-    Bridge -->|sendMessage| TG
-    TG -->|отговор| User
-    Bridge <-->|четене/запис| State
-    Bridge -->|/health /metrics| Health
-```
-
-### Ръководство за отстраняване на неизправности
-| Статус / Грешка | Причина | Решение |
-| :--- | :--- | :--- |
-| `ModuleNotFoundError: No module named 'httpx'` | Демонът е стартиран с глобалния python, вместо с локалната виртуална среда `.venv`. | Уверете се, че systemd услугата или скриптът стартират чрез виртуалната среда (`.venv/bin/python`). |
-| Невалиден токен (Rejected) | Токенът за Telegram Bot API е грешен, изтекъл или блокиран. | Проверете дали `config.json` съдържа валидния токен, получен от BotFather. |
-| Отказан достъп (Whitelist) | Потребителят, изпращащ съобщения, не е в белия списък `allowed_user_ids`. | Добавете вашия ID (получен от userinfobot) в `config.json` и рестартирайте процеса. |
-| Срив на `systemd --user` | Потребителският systemd не може да стартира услугата (обикновено поради липса на linger). | Изпълнете `loginctl enable-linger` като root/user, за да позволите на потребителските услуги да работят след изход. |
-| Webhook верификацията се проваля | Входящите webhook съобщения се отхвърлят поради несъответствие в HMAC подписите. | Проверете дали конфигурацията съответства на активния токен и че няма прокси, което променя тялото на заявката. |
-| Грешка в пътя на сесията | Опит за четене/запис извън разрешената директория `chats_root`. | Изчистете базата данни `state.json` и се уверете, че промените се правят съгласно правилата в `src/state.py`. |
-
-### Чести проблеми и Златни правила
-* **Златно правило 1: Достъп с отказ по подразбиране.** Винаги задавайте бели списъци за потребители. Никога не стартирайте публични ботове без стриктни филтри за достъп за избягване на злоупотреби.
-* **Златно правило 2: Изолация на виртуалната среда.** Винаги стартирайте демона и инструментите в `.venv/`, за да избегнете конфликти в библиотеките и грешки при импортиране.
-* **Златно правило 3: Webhook HMAC защита.** При webhook разгръщане винаги проверявайте подписите HMAC-SHA256 на входящите заявки, за да се предпазите от фалшиви заявки.
-* **Златно правило 4: Устойчивост на потребителските сесии.** Винаги проверявайте дали е активиран linger режимът (`loginctl enable-linger`) за съответния потребител, за да работи ботът и след изход от терминала.
+### 常用命令
+* `/start` - 欢迎语
+* `/help` - 帮助说明
+* `/status` / `/info` - 查看当前项目和机器人运行状态
+* `/settings` - 调出设置面板（可切换模型和工作模式）
+* `/reset` - 清除当前的上下文记忆，重新开始
+* `/files` - 列出当前上传的文件
