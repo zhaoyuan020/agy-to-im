@@ -69,16 +69,29 @@ def _safe_bool(raw: object) -> bool:
     return True
 
 
-def _safe_chat_state(chats_root: Path, raw: dict) -> ChatState | None:
+def _safe_chat_state(chats_root: Path, raw: dict, default_workdir: str) -> ChatState | None:
     chat_dir = raw.get("chat_dir")
     if not isinstance(chat_dir, str):
         return None
-    p = Path(chat_dir)
-    try:
-        p.resolve().relative_to(chats_root.resolve())
-    except (ValueError, OSError):
-        return None
-    if not _CHAT_DIR_RE.match(p.name):
+    p = Path(chat_dir).resolve()
+    
+    valid = False
+    if default_workdir:
+        try:
+            if p == Path(default_workdir).resolve():
+                valid = True
+        except (ValueError, OSError):
+            pass
+            
+    if not valid:
+        try:
+            p.relative_to(chats_root.resolve())
+            if _CHAT_DIR_RE.match(p.name):
+                valid = True
+        except (ValueError, OSError):
+            pass
+            
+    if not valid:
         return None
     return ChatState(
         chat_dir=str(p),
@@ -90,7 +103,7 @@ def _safe_chat_state(chats_root: Path, raw: dict) -> ChatState | None:
     )
 
 
-def load_state(path: Path, chats_root: Path) -> State:
+def load_state(path: Path, chats_root: Path, default_workdir: str = "") -> State:
     if not path.exists():
         return State()
     try:
@@ -106,7 +119,7 @@ def load_state(path: Path, chats_root: Path) -> State:
             continue
         if not isinstance(v, dict):
             continue
-        cs = _safe_chat_state(chats_root, v)
+        cs = _safe_chat_state(chats_root, v, default_workdir)
         if cs is not None:
             chats[chat_id] = cs
     return State(

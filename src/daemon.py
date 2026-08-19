@@ -240,7 +240,7 @@ async def run(
     _QUEUE.max_per_user = cfg.safety.queue.max_per_user
     _QUEUE.cooldown_seconds = cfg.safety.queue.cooldown_seconds
     chats_root.mkdir(parents=True, exist_ok=True)
-    state = load_state(state_path, chats_root)
+    state = load_state(state_path, chats_root, getattr(cfg.agy, "default_workdir", ""))
     tick = 0
     async with tg:
         while not stop_event.is_set():
