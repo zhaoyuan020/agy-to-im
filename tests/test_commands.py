@@ -89,10 +89,10 @@ async def test_callback_nav_settings() -> None:
 
 async def test_callback_model_choice() -> None:
     cs = _state()
-    cq = CallbackQuery(update_id=1, callback_query_id="q", chat_id=42, user_id=42, message_id=1, data="m:gemini-2.5-pro")
+    cq = CallbackQuery(update_id=1, callback_query_id="q", chat_id=42, user_id=42, message_id=1, data="m:Gemini 3.7 Flash (High)")
     reply = handle_callback(cq, cs, _cfg())
-    assert cs.model == "gemini-2.5-pro"
-    assert "gemini-2.5-pro" in reply.toast
+    assert cs.model == "Gemini 3.7 Flash (High)"
+    assert "Gemini 3.7 Flash (High)" in reply.toast
 
 
 async def test_callback_reset() -> None:

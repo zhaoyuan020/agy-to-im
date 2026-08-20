@@ -17,10 +17,8 @@ from pathlib import Path
 # no '..'). Real chat_ids are integers, so the dir name is the stringified id.
 _CHAT_DIR_RE = re.compile(r"^-?[0-9]+$")
 
-# Per-chat overrides have to be argv-safe. The regex rejects any character
-# that's not strictly needed for valid model identifiers (e.g. "gemini-3.5-flash").
-# Crucially it forbids a leading `-` so a tampered state file can't inject flags.
-_MODEL_RE = re.compile(r"^[a-zA-Z0-9._][a-zA-Z0-9._\-]*$")
+# Per-chat overrides have to be argv-safe. Forbid leading dashes to prevent flag injection.
+_MODEL_RE = re.compile(r"^[a-zA-Z0-9._][a-zA-Z0-9._\-\s()]*$")
 
 _ALLOWED_MODES = frozenset({"", "code", "plan"})
 
@@ -69,29 +67,38 @@ def _safe_bool(raw: object) -> bool:
     return True
 
 
-def _safe_chat_state(chats_root: Path, raw: dict, default_workdir: str) -> ChatState | None:
+def _safe_chat_state(chats_root: Path, raw: dict, default_workdir: str = "") -> ChatState | None:
     chat_dir = raw.get("chat_dir")
     if not isinstance(chat_dir, str):
         return None
-    p = Path(chat_dir).resolve()
+    p = Path(chat_dir)
     
-    valid = False
+    is_valid = False
     if default_workdir:
         try:
-            if p == Path(default_workdir).resolve():
-                valid = True
+            if p.resolve() == Path(default_workdir).resolve():
+                is_valid = True
         except (ValueError, OSError):
             pass
             
-    if not valid:
+    if not is_valid:
         try:
-            p.relative_to(chats_root.resolve())
-            if _CHAT_DIR_RE.match(p.name):
-                valid = True
+            # On Windows, Path('/tmp/evil').resolve() on C: drive becomes C:\tmp\evil, but Path('not-absolute').resolve() becomes D:\...\not-absolute
+            # If chat_dir is a posix path like /tmp/evil while chats_root is C:\..., resolve() won't fail with relative_to if drives match.
+            # We strictly require p to be under chats_root.
+            # Convert to absolute path using chats_root parent or strict check.
+            if not p.is_absolute():
+                is_valid = False
+            else:
+                p_abs = p.resolve()
+                cr_abs = chats_root.resolve()
+                p_abs.relative_to(cr_abs)
+                if _CHAT_DIR_RE.match(p_abs.name) and p_abs.parent == cr_abs:
+                    is_valid = True
         except (ValueError, OSError):
             pass
             
-    if not valid:
+    if not is_valid:
         return None
     return ChatState(
         chat_dir=str(p),

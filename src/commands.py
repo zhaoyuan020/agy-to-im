@@ -16,12 +16,17 @@ if TYPE_CHECKING:
     from src.state import ChatState
     from src.telegram import CallbackQuery, InboundMessage
 
-DEFAULT_MODEL = "gemini-3.5-flash"
+DEFAULT_MODEL = "Gemini 3.7 Flash (High)"
 
 MODEL_CHOICES: tuple[str, ...] = (
-    "gemini-3.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
+    "Gemini 3.7 Flash (High)",
+    "Gemini 3.5 Flash (High)",
+    "Gemini 3.5 Flash (Medium)",
+    "Gemini 3.1 Pro (High)",
+    "Gemini 3.1 Pro (Low)",
+    "Claude Sonnet 4.6 (Thinking)",
+    "Claude Opus 4.6 (Thinking)",
+    "GPT-OSS 120B (Medium)",
 )
 MODE_CHOICES: tuple[tuple[str, str], ...] = (
     ("code", "Code (auto)"),
