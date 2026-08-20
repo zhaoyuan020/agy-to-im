@@ -21,14 +21,16 @@ AGY_TIMEOUT_S = 900.0
 async def execute_agy(
     tg: "_TelegramLike", chat_id: int, msg: "InboundMessage",
     cs: "ChatState", cfg: "Config", agy_path: str,
+    prompt: str | None = None,
 ) -> tuple[str, int]:
     """Run one agy turn with typing heartbeat."""
     hb_stop = asyncio.Event()
     hb_task = asyncio.create_task(_heartbeat(tg, chat_id, hb_stop))
     turn_start = time.perf_counter()
+    actual_prompt = prompt if prompt is not None else msg.text
     try:
         result = await run_agy(
-            prompt=msg.text,
+            prompt=actual_prompt,
             chat_dir=cs.chat_dir,
             has_session=cs.has_session,
             model=cs.model or cfg.agy.model,

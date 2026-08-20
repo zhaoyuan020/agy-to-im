@@ -117,7 +117,7 @@ async def _do_turn(
         await tg.send_chat_action(msg.chat_id, "typing")
     except Exception:
         pass
-    text, code = await execute_agy(tg, msg.chat_id, msg, cs, cfg, agy_path)
+    text, code = await execute_agy(tg, msg.chat_id, msg, cs, cfg, agy_path, prompt=prompt)
     if code == 124:
         record_error()
         reply = _format_timeout_reply()
